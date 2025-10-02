@@ -1,4 +1,4 @@
-import { getDb } from "./database";
+import { getDb } from "./db";
 
 /**
  * Ejecuta una consulta de escritura (INSERT, UPDATE, DELETE)

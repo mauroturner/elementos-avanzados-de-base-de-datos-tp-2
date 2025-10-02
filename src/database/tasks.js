@@ -1,5 +1,5 @@
 import { fetchAll } from "../db/helper";
-import { getDb } from "./database";
+import { getDb } from "./db";
 
 export const getTasksByDate = async (date) => {
     const db = await getDb();
