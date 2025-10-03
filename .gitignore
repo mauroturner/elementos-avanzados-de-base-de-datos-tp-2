@@ -29,6 +29,7 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+# FirebaseConfig.js
 
 # local env files
 .env*.local

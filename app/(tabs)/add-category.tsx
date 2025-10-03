@@ -1,11 +1,20 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Button, StyleSheet, Text, TextInput, View } from "react-native";
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 import { runQuery } from "../../src/database/helper";
+import { addPendingOperation } from "../../src/database/pendingHelper";
 
 export default function AddCategoryScreen() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [categoryUuid, setCategoryUuid] = useState<string>("");
+
+  useEffect(() => {
+    // Generamos UUID al montar pantalla
+    setCategoryUuid(uuidv4());
+  }, []);
 
   const saveCategory = async () => {
     if (!name.trim()) {
@@ -14,13 +23,23 @@ export default function AddCategoryScreen() {
     }
 
     try {
+      // Insertamos localmente en SQLite con uuid
       await runQuery(
-        "INSERT INTO categories (name) VALUES (?)",
-        [name]
+        `INSERT INTO categories (uuid, name, created_at, updated_at)
+         VALUES (?, ?, datetime('now'), datetime('now'))`,
+        [categoryUuid, name]
       );
+
+      // Encolamos operación para Firestore
+      await addPendingOperation('INSERT', 'categories', categoryUuid, {
+        uuid: categoryUuid,
+        name
+      });
+
       Alert.alert("✅ Categoría agregada");
       setName("");
-      router.push("/categories"); // Volvemos a la lista
+      setCategoryUuid(uuidv4()); // Preparar UUID para próxima categoría
+      router.push("/categories"); // Volver al listado
     } catch (error) {
       console.error("Error agregando categoría:", error);
       Alert.alert("Error", "No se pudo agregar la categoría");

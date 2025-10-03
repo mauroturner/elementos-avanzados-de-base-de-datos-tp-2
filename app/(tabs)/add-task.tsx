@@ -2,7 +2,10 @@ import { Picker } from '@react-native-picker/picker';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Button, StyleSheet, Text, TextInput, View } from "react-native";
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 import { fetchAll, runQuery } from "../../src/database/helper";
+import { addPendingOperation } from "../../src/database/pendingHelper";
 
 interface Category {
   id: number;
@@ -19,6 +22,7 @@ export default function AddTaskScreen() {
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [dueAt, setDueAt] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
+  const [taskUuid, setTaskUuid] = useState<string>(""); // uuid de la tarea
 
   // Cargar categorías
   const loadCategories = async () => {
@@ -43,27 +47,27 @@ export default function AddTaskScreen() {
         setDescription(task.description);
         setCategoryId(task.category_id ?? null);
         setDueAt(task.due_at ?? "");
+        setTaskUuid(task.uuid ?? ""); // Guardar uuid
       }
     } catch (error) {
       console.error("Error cargando tarea:", error);
     }
   };
 
-  // Cargar categorías al montar
   useEffect(() => {
     loadCategories();
   }, []);
 
-  // Cargar tarea solo si estamos en modo edición
   useEffect(() => {
     if (taskId) {
       loadTask(taskId);
     } else {
-      // Si es nueva tarea, limpiar campos
+      // Nueva tarea
       setTitle("");
       setDescription("");
       setDueAt("");
       setCategoryId(categories[0]?.id ?? null);
+      setTaskUuid(uuidv4()); // Generar uuid para nueva tarea
     }
   }, [taskId, categories]);
 
@@ -82,15 +86,36 @@ export default function AddTaskScreen() {
            WHERE id = ?`,
           [title, description, categoryId, dueAt || null, taskId]
         );
+
+        // Agregar operación pendiente UPDATE
+        await addPendingOperation('UPDATE', 'tasks', taskUuid, {
+          uuid: taskUuid,
+          title,
+          description,
+          category_id: categoryId,
+          due_at: dueAt
+        });
+
         Alert.alert("✅ Tarea actualizada");
         router.push("/tasks");
       } else {
         // Crear nueva tarea
+        const newUuid = taskUuid || uuidv4();
         await runQuery(
-          `INSERT INTO tasks (title, description, category_id, due_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
-          [title, description, categoryId, dueAt || null]
+          `INSERT INTO tasks (uuid, title, description, category_id, due_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+          [newUuid, title, description, categoryId, dueAt || null]
         );
+
+        // Agregar operación pendiente INSERT
+        await addPendingOperation('INSERT', 'tasks', newUuid, {
+          uuid: newUuid,
+          title,
+          description,
+          category_id: categoryId,
+          due_at: dueAt
+        });
+
         Alert.alert("✅ Tarea agregada");
 
         // Limpiar campos para nueva tarea
@@ -98,6 +123,7 @@ export default function AddTaskScreen() {
         setDescription("");
         setDueAt("");
         setCategoryId(categories[0]?.id ?? null);
+        setTaskUuid(uuidv4()); // Preparar uuid para próxima tarea
       }
     } catch (error) {
       console.error("Error guardando tarea:", error);
